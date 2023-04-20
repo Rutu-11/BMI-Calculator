@@ -14,6 +14,9 @@ app.use(cors())
 
 app.use(express.json());
 
+app.get("/",(req,res)=>{
+  res.send("hello world")
+})
 app.post("/postSongs", async(req, res) => {
   const artist = req.query;
   const response = await getSongs("Badashah");
