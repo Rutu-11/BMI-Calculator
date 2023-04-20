@@ -1,6 +1,7 @@
 const express = require("express");
-const { userModel  } = require("./Model/User.model.js");
-const { BMIModel } = require("./Model/BMI.model.js");
+const getSongs = require('./Scripts/index')
+const { userModel } = require("./Model/User.model.js");
+const {songModel } = require("./Model/Songs.model");
 const { connectDatabase } = require("./Config/db.js");
 const bcrypt = require("bcrypt");
 var jwt = require("jsonwebtoken");
@@ -13,14 +14,44 @@ app.use(cors())
 
 app.use(express.json());
 
-app.get("/", (req, res) => {
-  res.send("Hello Backend");
+app.post("/postSongs", async(req, res) => {
+  const artist = req.query;
+  const response = await getSongs("Badashah");
+  if(response){
+    try{
+      for (let ele of response.data) {
+       
+        const { id, readable, title, title_short, title_version, link, duration, rank, explicit_lyrics, explicit_content_lyrics, explicit_content_cover, preview, md5_image, artist, album, type } = ele;
+        const song = await songModel.findOne({title:title})
+        if(!song){
+        await songModel.create({ id, readable, title, title_short, title_version, link, duration, rank, explicit_lyrics, explicit_content_lyrics, explicit_content_cover, preview, md5_image, artist, album, type });
+        }
+      }
+
+      const data = await songModel.find();
+      res.send({
+        msg: "Songs created successfully",
+        data:data
+      });
+    } catch(err){
+      console.log(err);
+      res.send("Error creating songs");
+    }
+  }
 });
 
-
+app.get('/search', async (req, res) => {
+  const query = req.query.q; // assuming the search query is passed as a query parameter 'q'
+  const data = await songModel.find({ $text: { $search: query } });
+  if (data) {
+    res.send({ data: data });
+  } else {
+    res.send("No results found");
+  }
+});
 
 app.post("/signup", async (req, res) => {
-  const { email, name, password } = req.body;
+  const { email, name, password, dateOfBirth, gender } = req.body;
 
   const isUser = await userModel.findOne({ email: email });
   if (isUser) {
@@ -51,9 +82,12 @@ app.post("/signup", async (req, res) => {
 app.post("/login", async (req, res) => {
   const { email, password } = req.body;
   const User = await userModel.findOne({ email });
-  const hashed_password = User.password;
-  const user_id = User._id;
-  //  console.log(user_id)
+  console.log('User',User)
+  if(User){
+    const hashed_password = User.password;
+    const user_id = User._id;
+    //  console.log(user_id)
+ 
 
   bcrypt.compare(password, hashed_password, function (err, result) {
     if (err) {
@@ -68,6 +102,8 @@ app.post("/login", async (req, res) => {
       res.send("Login Failed");
     }
   });
+
+}
   
 });
 
@@ -84,25 +120,9 @@ app.get('/getProfile', authentication, async(req,res)=>{
 
 
 
-app.post('/calculateBMI',authentication,async (req,res)=>{
-  const {height, weight, user_id} = req.body;
-
-  const height_in_meter = Number(height)*0.3048;
-  const BMI = Number(weight)/height_in_meter **2;
-
-let bmi = new BMIModel({height:height_in_meter,weight,BMI, user_id })
-
-  await bmi.save();
-  res.send({bmi})
-})
 
 
-app.get('/getCalculations', authentication, async (req, res)=>{
 
-  const {user_id} = req.body;
-  const all_bmis = await BMIModel.find({user_id:user_id});
-  res.send({history:all_bmis})
-})
 
 app.listen(8080, async () => {
   try {
